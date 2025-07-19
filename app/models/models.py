@@ -1,9 +1,17 @@
 #  ________________________
 #  Import LIBRARIES
+from enum import Enum
+
 from pydantic import BaseModel
 
 #  Import FILES
 #  ________________________
+
+
+class ModelName(str, Enum):
+    alexnet = "alexnet"
+    resnet = "resnet"
+    lenet = "lenet"
 
 
 # Define a Pydantic model for request body validation
