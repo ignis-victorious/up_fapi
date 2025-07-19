@@ -14,8 +14,15 @@ class ModelName(str, Enum):
     lenet = "lenet"
 
 
-# Define a Pydantic model for request body validation
 class Item(BaseModel):
     name: str
+    description: str | None = None
     price: float
-    is_offer: bool | None = None
+    tax: float | None = None
+
+
+# # Define a Pydantic model for request body validation
+# class Item(BaseModel):
+#     name: str
+#     price: float
+#     is_offer: bool | None = None
