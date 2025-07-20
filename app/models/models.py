@@ -1,73 +1,55 @@
 #  ________________________
 #  Import LIBRARIES
-from enum import Enum
+from enum import StrEnum
 
-from pydantic import BaseModel, field_validator
+# from enum import Enum
+from pydantic import BaseModel, Field
 
 #  Import FILES
 #  ________________________
 
 
-class ModelName(str, Enum):
-    alexnet = "alexnet"
-    resnet = "resnet"
-    lenet = "lenet"
+class Category(StrEnum):
+    # class Category(str, Enum):
+    ELECTRONICS = "electronics"
+    CLOTHING = "clothing"
+    BOOKS = "books"
+    FOOD = "food"
 
 
-# class Item(BaseModel):
-#     name: str
-#     description: str | None = None
-#     price: float
-#     tax: float | None = None
+class ItemBase(BaseModel):
+    name: str = Field(default=..., min_length=1, max_length=50)
+    description: str | None = Field(default=None, max_length=300)
+    price: float = Field(default=..., gt=0)
+    tax: float | None = Field(default=None, ge=0)
+    category: Category  # This is the key!
 
 
-# # Define a Pydantic model for request body validation
-# class Item(BaseModel):
-#     name: str
-#     price: float
-#     is_offer: bool | None = None
+class ItemCreate(ItemBase):
+    pass
 
 
-class User(BaseModel):
-    username: str
-    full_name: str | None = None
+class Item(ItemBase):
+    id: int
+
+    class Config:
+        json_schema_extra: dict[str, dict[str, int | str | float]] = {
+            "example": {
+                "id": 1,
+                "name": "Smartphone",
+                "description": "Latest model with high-end features",
+                "price": 799.99,
+                "tax": 79.99,
+                "category": "food",
+            }
+        }
 
 
-# class Image(BaseModel):
-#     url: str
-#     name: str
-
-
-# class Item(BaseModel):
-#     name: str
-#     description: str | None = None
-#     price: float
-#     tax: float | None = None
-#     tags: list[str] = []
-#     image: Image | None = None
-
-# #  Using Field as validator
-# class Item(BaseModel):
-#     name: str = Field(default=..., min_length=1, max_length=50)
-#     description: str | None = Field(default=None, max_length=300)
-#     price: float = Field(default=..., gt=0)
-#     tax: float | None = Field(default=None, ge=0)
-
-
-#  Using field_validator as validator
-class Item(BaseModel):
-    name: str
-    price: float
-    quantity: int
-
-    @field_validator("quantity")
-    def quantity_must_be_positive(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("Quantity must be positive")
-        return v
-
-    @field_validator("price")
-    def price_must_be_positive(cls, v: float) -> float:
-        if v < 0:
-            raise ValueError("Price must be positive")
-        return v
+# {
+#   "name": "mamma",
+#   "description": "nonna + mamma",
+#   "price": 121,
+#   "tax": 90,
+#   "category": "food",
+#   "id": 1
+# }

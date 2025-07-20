@@ -1,199 +1,94 @@
 #  ________________________
 #  Import LIBRARIES
-from datetime import date
-from typing import Any
+from fastapi import Body, FastAPI, HTTPException, Path, Query
 
-from fastapi import FastAPI, Path, Query
+from .data.fake_database import counter, items_db
 
 #  Import FILES
-from .models.models import Item, ModelName
+from .models.models import Category, Item, ItemBase, ItemCreate
 
 #  ________________________
 
 
-# # Create an instance of the FastAPI class
-# app: FastAPI = FastAPI()
-
-# Create an instance with metadata
-app: FastAPI = FastAPI(
-    title="My First API",
-    description="A simple API built with FastAPI",
-    version="0.1.0",
-    docs_url="/documentation",  # Change the docs URL !!!
-    redoc_url="/redoc",
-)
+app: FastAPI = FastAPI(title="Item Manager API", version="1.0.0")
 
 
-# Define a root endpoint.
-@app.get(path="/")
-def read_root() -> dict[str, str]:
-    return {"message": "Hello World"}
+# Routes
+@app.post(path="/items/", response_model=Item, status_code=201)
+def create_item(item: ItemCreate) -> Item:
+    global counter
+    counter += 1
+    # Debugging line:
+    print(f"Incoming item data (model_dump): {item.model_dump(mode='json')}")
+
+    item_data = item.model_dump(mode="json")
+    # item_data: dict[str, str | int | float | None] = item.model_dump(mode="json")
+    if "category" not in item_data or item_data["category"] is None:
+        raise HTTPException(status_code=422, detail="Category is required")
+    new_item: Item = Item(
+        id=counter,
+        name=item.name,
+        description=item.description,
+        price=item.price,
+        tax=item.tax,
+        category=item.category,  # Pass the actual Enum member, not its string representation from model_dump
+    )
+    # new_item: Item = Item(id=counter, **item_data)
+    items_db[counter] = new_item
+    return new_item
 
 
-# # Define a path parameter endpoint.
-# @app.get(path="/items/{item_id}")
-# def read_item(item_id: int) -> dict[str, int]:
-#     return {"item_id": item_id}
+@app.get(path="/items/", response_model=list[Item])
+def read_items(
+    skip: int = Query(default=0, ge=0, description="Number of items to skip"),
+    limit: int = Query(
+        default=10, ge=1, le=100, description="Max number of items to return"
+    ),
+    category: Category | None = None,
+) -> list[ItemBase]:
+    filtered_items: list[ItemBase] = list(items_db.values())
+
+    if category:
+        filtered_items = [item for item in filtered_items if item.category == category]
+
+    return filtered_items[skip : skip + limit]
 
 
-# # Define a path + query parameter endpoint - Works with: http://127.0.0.1:8000/items/123?q=erre
-# @app.get(path="/items/{item_id}")
-# def read_item(item_id: int, q: str | None = None) -> dict[str, int | str | None]:
-#     return {"item_id": item_id, "q": q}
-
-
-# # Define a POST endpoint with request body - Works with _ {"name": "Laptop", "price": 10, "is_offer": false}
-# @app.post(path="/items/")
-# def create_item(item: Item) -> Item:
-#     return item
-
-
-# Works with: http://127.0.0.1:8000/items/123 (but not with 12345678)
-@app.get(path="/items/{item_id}")
+@app.get(path="/items/{item_id}", response_model=Item)
 def read_item(
-    item_id: int = Path(default=..., title="The ID of the item", ge=0, le=1000),
-) -> dict[str, int]:  # With Path Parameter Validation
-    return {"item_id": item_id}
+    item_id: int = Path(default=..., gt=0, description="The ID of the item to get"),
+) -> ItemBase:
+    if item_id not in items_db:
+        raise HTTPException(status_code=404, detail="Item not. found")
+    return items_db[item_id]
 
 
-# Multiple Values for the Same Parameter - Works with: http://127.0.0.1:8000/items/?q=erre&q=esse&q=emme
-@app.get(path="/items/")
-def read_items(q: list[str] = Query(default=None)) -> dict[str, list[str]]:
-    return {"q": q}
+@app.put(path="/items/(item_id)", response_model=Item)
+def update_item(
+    item_id: int = Path(default=..., gt=0),
+    item: ItemBase = Body(
+        default=...,
+        example={
+            "name": "Updated Smartphone",
+            "description": "Latest model with even better features",
+            "price": 899.99,
+            "tax": 89.99,
+            "category": "electronics",
+        },
+    ),
+) -> Item:
+    if item_id not in items_db:
+        raise HTTPException(status_code=404, detail="Item not. found")
+
+    updated_item: Item = Item(id=item_id, **item.model_dump())
+    items_db[item_id] = updated_item
+    return updated_item
 
 
-# #  Boolean Type Conversion
-# @app.get(path="/items/")
-# def read_items(featured: bool = False) -> dict[str, str]:
-#     if featured:
-#         return {"featured": "Get only featured items"}
-#     return {"featured": "Get all items"}
+@app.delete(path="/items/{item_id}", status_code=204)
+def delete_item(item_id: int = Path(default=..., gt=0)) -> None:
+    if item_id not in items_db:
+        raise HTTPException(status_code=404, detail="Item not. found")
 
-
-# #  Works with: http://127.0.0.1:8000/items/?q=aaa but not with ?q=aa or ?q=a1a or ...
-# @app.get(path="/items/")
-# def read_items(
-#     q: str | None = Query(
-#         default=None,  # Default value
-#         min_length=3,  # Minimum length
-#         max_length=50,  # Maximum length
-#         regex="^[a-z]+$",  # Regular expression pattern
-#         title="Query string",  # Title for documentationdescription="Query string for filtering items" # Description for does
-#     ),
-# ) -> dict[str, list[dict[str, str]]]:
-#     results: dict[str, list[dict[str, str]]] = {
-#         "items": [{"item_id": "Foo"}, {"item_id": "Bar"}]
-#     }
-#     if q:
-#         # results.update({"q": q})
-#         results["items"].append({"item_id": q})
-#     return results
-
-
-#  Works with: http://127.0.0.1:8000/items/?required_query=erre and http://127.0.0.1:8000/items/?required_query=erre&optional_query=esse
-# @app.get(path="/items/")
-# def read_items(
-#     required_query: str,  # Required parameter (no default value)
-#     optional_query: str | None = None,  # Optional parameter
-# ) -> dict[str, str]:
-#     results: dict[str, str] = {"required": required_query}
-#     if optional_query:
-#         results.update({"optional": optional_query})
-#     return results
-
-
-# #  Query Parameters - Worls with: http://127.0.0.1:8000/items/?skip=20&limit=50
-# @app.get(path="/items/")
-# def read_items(skip: int = 0, limit: int = 10) -> dict[str, int]:
-#     return {"skip": skip, "limit": limit}
-
-
-# # Works with: http://127.0.0.1:8000/items/12345678
-# @app.get(path="/items/{item_id}")
-# def read_item(item_id: int) -> dict[str, int]:  # Integer validation
-#     return {"item_id": item_id}
-
-
-# Works with: http://127.0.0.1:8000/users/user1
-@app.get(path="/users/{user_id}")
-def read_user(user_id: str) -> dict[str, str]:  # String (default)
-    return {"user_id": user_id}
-
-
-#  Works with: http://127.0.0.1:8000/files/{file_path:path)?file_path=folder%2Ffolder%2Ffile
-@app.get(path="/files/{file_path:path)")
-def read_file(file_path: str) -> dict[str, str]:  # Path parameter containing slashes
-    return {"file_path": file_path}
-
-
-#  Predefined Values with Enum
-@app.get(path="/models/{model_name}")
-def get_model(model_name: ModelName) -> dict[str, ModelName | str]:
-    if model_name is ModelName.alexnet:
-        return {"model_name": model_name, "message": "Deep Learning FTW!"}
-    if model_name.value == "lenet":
-        return {"model_name": model_name, "message": "LeCNN all the images"}
-    return {"model_name": model_name, "message": "Have some residuals"}
-
-
-# #  Works with: http://127.0.0.1:8000/models/497f6eca-6276-4993-bfeb-53cbbbba6f08
-# @app.get(path="/models/{model_uuid}")
-# def get_model(model_uuid: UUID) -> dict[str, UUID]:  # UUID validation
-#     print(f"model uiid: {model_uuid}")
-#     return {"model_uuid": model_uuid}
-
-
-#  This works: http://127.0.0.1:8000/events/2025-01-01
-@app.get(path="/events/{event_date}")
-def get_events(event_date: date) -> dict[str, date]:  # Date validation (YYYY-MM-DD)
-    return {"event_date": event_date}
-
-
-# ___ Lecture 3 ___
-
-# #  Request Body + Path Parameters
-# @app.put(path="/items/{item_id}")
-# def update_item(item_id: int, item: Item) -> dict[str, int | Any]:
-#     return {"item_id": item_id, **item.model_dump()}
-# # return ("item_id": item_id, **item.dict())  .dict() is deprecated in favour of model_dump as per line above
-
-
-#  Request Body + Path + Query Parameters - Works with: http://127.0.0.1:8000/items/123?q=erre
-@app.put(path="/items/{item_id}")
-def update_item(item_id: int, item: Item, q: str | None = None) -> dict[str, int | Any]:
-    result: dict[str, int | Any] = {"item id": item_id, **item.model_dump()}
-    # result = ("item id": item id, **item.dict()}  .dict() is deprecated in favour of model_dump
-    if q:
-        result.update({"q": q})
-    return result
-
-
-# #  Multiple Body Parameters
-# @app.post(path="/items/")
-# def create_item(item: Item, user: User) -> dict[str, Item | User]:
-#     return {"item": item, "user": user}
-
-
-# # Body in a Specific Field - If you want the entire JSON body assigned to a specific field, use the Body parameter:
-# @app.post(path="/items/")
-# def create_item(
-#     item: Item, importance: int = Body(default=...)
-# ) -> dict[str, Item | int]:
-#     return {"item": item, "importance": importance}
-
-
-#  Nested Models
-@app.post(path="/items/")
-def create_item(item: Item) -> Item:
-    return item
-
-
-# Advanced Validation with Pydantic
-
-
-# def main():
-#     print("Hello from up-fapi!")
-
-
-# if __name__ == "__main__":
-#     main()
+    del items_db[item_id]
+    return None
