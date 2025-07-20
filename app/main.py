@@ -1,6 +1,7 @@
 #  ________________________
 #  Import LIBRARIES
 from datetime import date
+from typing import Any
 
 from fastapi import FastAPI, Path, Query
 
@@ -41,10 +42,10 @@ def read_root() -> dict[str, str]:
 #     return {"item_id": item_id, "q": q}
 
 
-# Define a POST endpoint with request body - Works with _ {"name": "Laptop", "price": 10, "is_offer": false}
-@app.post(path="/items/")
-def create_item(item: Item) -> Item:
-    return item
+# # Define a POST endpoint with request body - Works with _ {"name": "Laptop", "price": 10, "is_offer": false}
+# @app.post(path="/items/")
+# def create_item(item: Item) -> Item:
+#     return item
 
 
 # Works with: http://127.0.0.1:8000/items/123 (but not with 12345678)
@@ -146,6 +147,48 @@ def get_model(model_name: ModelName) -> dict[str, ModelName | str]:
 @app.get(path="/events/{event_date}")
 def get_events(event_date: date) -> dict[str, date]:  # Date validation (YYYY-MM-DD)
     return {"event_date": event_date}
+
+
+# ___ Lecture 3 ___
+
+# #  Request Body + Path Parameters
+# @app.put(path="/items/{item_id}")
+# def update_item(item_id: int, item: Item) -> dict[str, int | Any]:
+#     return {"item_id": item_id, **item.model_dump()}
+# # return ("item_id": item_id, **item.dict())  .dict() is deprecated in favour of model_dump as per line above
+
+
+#  Request Body + Path + Query Parameters - Works with: http://127.0.0.1:8000/items/123?q=erre
+@app.put(path="/items/{item_id}")
+def update_item(item_id: int, item: Item, q: str | None = None) -> dict[str, int | Any]:
+    result: dict[str, int | Any] = {"item id": item_id, **item.model_dump()}
+    # result = ("item id": item id, **item.dict()}  .dict() is deprecated in favour of model_dump
+    if q:
+        result.update({"q": q})
+    return result
+
+
+# #  Multiple Body Parameters
+# @app.post(path="/items/")
+# def create_item(item: Item, user: User) -> dict[str, Item | User]:
+#     return {"item": item, "user": user}
+
+
+# # Body in a Specific Field - If you want the entire JSON body assigned to a specific field, use the Body parameter:
+# @app.post(path="/items/")
+# def create_item(
+#     item: Item, importance: int = Body(default=...)
+# ) -> dict[str, Item | int]:
+#     return {"item": item, "importance": importance}
+
+
+#  Nested Models
+@app.post(path="/items/")
+def create_item(item: Item) -> Item:
+    return item
+
+
+# Advanced Validation with Pydantic
 
 
 # def main():
